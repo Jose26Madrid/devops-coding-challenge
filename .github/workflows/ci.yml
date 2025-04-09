@@ -31,6 +31,7 @@ jobs:
       DJANGO_SETTINGS_MODULE: config.settings.test
       PYTHONUNBUFFERED: 1
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/devops-coding-challenge
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
 
     steps:
       - name: Checkout code
