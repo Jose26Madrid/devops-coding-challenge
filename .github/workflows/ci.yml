@@ -32,6 +32,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
       REDIS_URL: redis://localhost:6379/0
+      USE_DOCKER: "no"
       PYTHONUNBUFFERED: 1
 
     steps:
@@ -123,6 +124,7 @@ jobs:
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
       REDIS_URL: redis://localhost:6379/0
+      USE_DOCKER: "no"
       PYTHONUNBUFFERED: 1
 
     steps:
@@ -147,6 +149,7 @@ jobs:
             -e DATABASE_URL \
             -e CELERY_BROKER_URL \
             -e REDIS_URL \
+            -e USE_DOCKER \
             $IMAGE_NAME:$TAG_NAME python manage.py migrate
 
       - name: Deploy to production
