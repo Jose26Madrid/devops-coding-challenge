@@ -114,10 +114,16 @@ jobs:
           name: trivy-report
           path: trivy-report.txt
 
-  # CD para main (producción)
+  # CD para main (producción) 
   cd-production:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      PYTHONUNBUFFERED: 1
 
     steps:
       - name: Checkout code
@@ -135,15 +141,12 @@ jobs:
         run: docker pull $IMAGE_NAME:$TAG_NAME
 
       - name: Run migrations
-        env:
-          DJANGO_SETTINGS_MODULE: config.settings.production
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          CELERY_BROKER_URL: ${{ secrets.CELERY_BROKER_URL }}
-        run: docker run --rm \
-          -e DJANGO_SETTINGS_MODULE \
-          -e DATABASE_URL \
-          -e CELERY_BROKER_URL \
-          $IMAGE_NAME:$TAG_NAME python manage.py migrate
+        run: |
+          docker run --rm \
+            -e DJANGO_SETTINGS_MODULE \
+            -e DATABASE_URL \
+            -e CELERY_BROKER_URL \
+            $IMAGE_NAME:$TAG_NAME python manage.py migrate
 
       - name: Deploy to production
         run: |
