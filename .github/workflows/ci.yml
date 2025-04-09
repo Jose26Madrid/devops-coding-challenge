@@ -8,7 +8,6 @@ on:
 
 jobs:
 
-  # CI para develop y PRs
   ci-develop:
     if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -29,9 +28,11 @@ jobs:
           - 6379:6379
 
     env:
-      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
+      USE_DOCKER: "no"
       PYTHONUNBUFFERED: 1
 
     steps:
@@ -114,15 +115,16 @@ jobs:
           name: trivy-report
           path: trivy-report.txt
 
-  # CD para main (producción) 
   cd-production:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     env:
-      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_SETTINGS_MODULE: config.settings.local
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
+      USE_DOCKER: "no"
       PYTHONUNBUFFERED: 1
 
     steps:
@@ -146,6 +148,8 @@ jobs:
             -e DJANGO_SETTINGS_MODULE \
             -e DATABASE_URL \
             -e CELERY_BROKER_URL \
+            -e REDIS_URL \
+            -e USE_DOCKER \
             $IMAGE_NAME:$TAG_NAME python manage.py migrate
 
       - name: Deploy to production
