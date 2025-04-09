@@ -79,17 +79,25 @@ jobs:
       - name: Run tests
         run: pytest --disable-warnings
 
-      - name: Set image name
-        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - name: Generate Docker tag
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "TAG_NAME=devops-$(date +'%d-%m')" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build Docker image
-        run: docker build -t $IMAGE_NAME:${{ github.sha }} -f compose/local/django/Dockerfile .
+        run: |
+          docker build \
+            -t $IMAGE_NAME:${{ github.sha }} \
+            -t $IMAGE_NAME:$TAG_NAME \
+            -f compose/local/django/Dockerfile .
 
-      - name: Push Docker image
-        run: docker push $IMAGE_NAME:${{ github.sha }}
+      - name: Push Docker images
+        run: |
+          docker push $IMAGE_NAME:${{ github.sha }}
+          docker push $IMAGE_NAME:$TAG_NAME
 
       - name: Scan image with Trivy
         uses: aquasecurity/trivy-action@master
@@ -106,7 +114,7 @@ jobs:
           name: trivy-report
           path: trivy-report.txt
 
-  # CD para producción (main)
+  # CD para main (producción)
   cd-production:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -115,22 +123,28 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Set image name
-        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+      - name: Generate Docker tag
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "TAG_NAME=devops-$(date +'%d-%m')" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Pull Docker image
-        run: docker pull $IMAGE_NAME:${{ github.sha }}
+        run: docker pull $IMAGE_NAME:$TAG_NAME
 
       - name: Run migrations
         env:
           DJANGO_SETTINGS_MODULE: config.settings.production
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
           CELERY_BROKER_URL: ${{ secrets.CELERY_BROKER_URL }}
-        run: docker run --rm -e DJANGO_SETTINGS_MODULE -e DATABASE_URL -e CELERY_BROKER_URL $IMAGE_NAME:${{ github.sha }} python manage.py migrate
+        run: docker run --rm \
+          -e DJANGO_SETTINGS_MODULE \
+          -e DATABASE_URL \
+          -e CELERY_BROKER_URL \
+          $IMAGE_NAME:$TAG_NAME python manage.py migrate
 
       - name: Deploy to production
         run: |
-          echo "🚀 Aquí iría tu despliegue real"
+          echo "🚀 Aquí iría tu despliegue real (Docker Compose, SSH, Kubernetes, etc)"
