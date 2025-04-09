@@ -38,7 +38,6 @@ jobs:
       POSTGRES_PASSWORD: postgres
       DJANGO_SETTINGS_MODULE: config.settings.test
       PYTHONUNBUFFERED: 1
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/devops-coding-challenge
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
 
@@ -87,12 +86,14 @@ jobs:
       - name: Run tests
         run: pytest --disable-warnings
 
+      - name: Set image name (lowercase)
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build Docker image
-        run: |
-          docker build -t $IMAGE_NAME:${{ github.sha }} -f compose/local/django/Dockerfile .
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} -f compose/local/django/Dockerfile .
 
       - name: Push Docker image to GHCR
         run: docker push $IMAGE_NAME:${{ github.sha }}
