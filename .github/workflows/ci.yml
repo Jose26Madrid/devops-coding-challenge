@@ -2,15 +2,13 @@ name: CI/CD
 
 on:
   push:
-    branches: [develop, master]
+    branches: [develop, main]
   pull_request:
     branches: [develop]
 
 jobs:
 
-  # --------------------------
   # CI para develop y PRs
-  # --------------------------
   ci-develop:
     if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
     runs-on: ubuntu-latest
@@ -108,12 +106,9 @@ jobs:
           name: trivy-report
           path: trivy-report.txt
 
-
-  # --------------------------
-  # CD para producción
-  # --------------------------
+  # CD para producción (main)
   cd-production:
-    if: github.ref == 'refs/heads/master'
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
     steps:
@@ -139,4 +134,3 @@ jobs:
       - name: Deploy to production
         run: |
           echo "🚀 Aquí iría tu despliegue real"
-          # ssh, kubectl, docker-compose, etc.
