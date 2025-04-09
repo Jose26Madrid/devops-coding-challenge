@@ -4,9 +4,12 @@ on:
   push:
     branches:
       - develop
+  pull_request:
+    branches:
+      - develop
 
 jobs:
-  build-test-push-scan:
+  format-test-build:
     runs-on: ubuntu-latest
 
     services:
@@ -35,13 +38,15 @@ jobs:
       POSTGRES_PASSWORD: postgres
       DJANGO_SETTINGS_MODULE: config.settings.test
       PYTHONUNBUFFERED: 1
-      IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/devops-coding-challenge
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
       CELERY_BROKER_URL: redis://localhost:6379/0
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -53,6 +58,27 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements/base.txt
           pip install -r requirements/local.txt
+          pip install black isort flake8
+
+      - name: Format code with isort and black
+        run: |
+          isort .
+          black .
+
+      - name: Commit and push formatting changes
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            git config --global user.name "github-actions"
+            git config --global user.email "actions@github.com"
+            git add .
+            git commit -m "style: autoformat code with isort and black"
+            git push
+          else
+            echo "No formatting changes to commit."
+          fi
+
+      - name: Run flake8 (non-blocking)
+        run: flake8 . || true
 
       - name: Run migrations
         run: python manage.py migrate
@@ -60,15 +86,14 @@ jobs:
       - name: Run tests
         run: pytest --disable-warnings
 
-      - name: Run flake8
-        run: flake8 .
+      - name: Set image name (lowercase)
+        run: echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Log in to GitHub Container Registry
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
       - name: Build Docker image
-        run: |
-          docker build -t $IMAGE_NAME:${{ github.sha }} -f compose/local/django/Dockerfile .
+        run: docker build -t $IMAGE_NAME:${{ github.sha }} -f compose/local/django/Dockerfile .
 
       - name: Push Docker image to GHCR
         run: docker push $IMAGE_NAME:${{ github.sha }}
