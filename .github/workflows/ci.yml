@@ -24,6 +24,11 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+
     env:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
@@ -32,6 +37,7 @@ jobs:
       PYTHONUNBUFFERED: 1
       IMAGE_NAME: ghcr.io/${{ github.repository_owner }}/devops-coding-challenge
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      CELERY_BROKER_URL: redis://localhost:6379/0
 
     steps:
       - name: Checkout code
