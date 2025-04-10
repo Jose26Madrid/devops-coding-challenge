@@ -38,9 +38,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -82,8 +79,8 @@ jobs:
 
       - name: Generate Docker tag
         run: |
-          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
           echo "TAG_NAME=devops-$(date +'%d-%m')" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -119,13 +116,14 @@ jobs:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
 
-    env:
-      TAG_NAME: devops-$(date +'%d-%m')
-      IMAGE_NAME: ghcr.io/jose26madrid/devops-coding-challenge
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+
+      - name: Generate Docker tag
+        run: |
+          echo "TAG_NAME=devops-$(date +'%d-%m')" >> $GITHUB_ENV
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
 
       - name: Log in to GHCR
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
@@ -133,10 +131,10 @@ jobs:
       - name: Pull image
         run: docker pull $IMAGE_NAME:$TAG_NAME
 
-      - name: Tag pulled image as local
+      - name: Tag image locally for compose
         run: docker tag $IMAGE_NAME:$TAG_NAME devops_interview_test_local_django
 
-      - name: Scan image with Trivy
+      - name: Run Trivy scan
         continue-on-error: true
         uses: aquasecurity/trivy-action@master
         with:
@@ -153,7 +151,7 @@ jobs:
           name: trivy-prod-report
           path: trivy-prod-report.txt
 
-      - name: Run migrations via docker-compose
+      - name: Run migrations
         run: docker compose -f local.yml run --rm django python manage.py migrate
 
       - name: Start full stack
@@ -172,4 +170,4 @@ jobs:
         run: docker compose -f local.yml down
 
       - name: Deploy to production
-        run: echo "🚀 Aquí iría tu despliegue real"
+        run: echo "🚀 Aquí iría el script real de despliegue"
