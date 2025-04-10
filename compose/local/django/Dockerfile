@@ -2,7 +2,16 @@
 # It's a basic stripped down version that does the bare minimum to get the project running
 
 # define an alias for the specific python version used in this file.
-FROM python:3.11.3-slim-bullseye as python
+FROM python:3.11-slim-bookworm as python
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    apt-get install --no-install-recommends -y \
+        build-essential \
+        libpq-dev \
+        gettext \
+    && apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG BUILD_ENVIRONMENT=local
 ARG APP_HOME=/app
