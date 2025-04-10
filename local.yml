@@ -1,90 +1,160 @@
-version: '3'
+name: CI/CD
 
-volumes:
-  devops_interview_test_local_postgres_data: {}
-  devops_interview_test_local_postgres_data_backups: {}
+on:
+  push:
+    branches: [develop, main]
+  pull_request:
+    branches: [develop]
 
-services:
-  django: &django
-    build:
-      context: .
-      dockerfile: ./compose/local/django/Dockerfile
-    image: devops_interview_test_local_django
-    container_name: devops_interview_test_local_django
-    depends_on:
-      - postgres
-      - redis
-      - mailhog
-    volumes:
-      - .:/app:z
-    env_file:
-      - ./.envs/.local/.django
-      - ./.envs/.local/.postgres
-    ports:
-      - '8000:8000'
-    command: /start
+jobs:
 
-  postgres:
-    image: postgres:14
-    container_name: devops_interview_test_local_postgres
-    volumes:
-      - devops_interview_test_local_postgres_data:/var/lib/postgresql/data
-      - devops_interview_test_local_postgres_data_backups:/backups
-    env_file:
-      - ./.envs/.local/.postgres
+  ci-develop:
+    if: github.ref == 'refs/heads/develop' || github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
 
-  docs:
-    image: devops_interview_test_local_docs
-    container_name: devops_interview_test_local_docs
-    build:
-      context: .
-      dockerfile: ./compose/local/docs/Dockerfile
-    env_file:
-      - ./.envs/.local/.django
-    volumes:
-      - ./docs:/docs:z
-      - ./config:/app/config:z
-      - ./devops_interview_test:/app/devops_interview_test:z
-    ports:
-      - '9000:9000'
-    command: /start-docs
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
 
-  mailhog:
-    image: mailhog/mailhog:v1.0.0
-    container_name: devops_interview_test_local_mailhog
-    ports:
-      - "8025:8025"
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
 
-  redis:
-    image: redis:6
-    container_name: devops_interview_test_local_redis
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      CELERY_BROKER_URL: redis://localhost:6379/0
+      REDIS_URL: redis://localhost:6379/0
+      USE_DOCKER: "no"
+      PYTHONUNBUFFERED: 1
 
-  celeryworker:
-    <<: *django
-    image: devops_interview_test_local_celeryworker
-    container_name: devops_interview_test_local_celeryworker
-    depends_on:
-      - redis
-      - postgres
-      - mailhog
-    ports: []
-    command: /start-celeryworker
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
+          token: ${{ secrets.GITHUB_TOKEN }}
 
-  celerybeat:
-    <<: *django
-    image: devops_interview_test_local_celerybeat
-    container_name: devops_interview_test_local_celerybeat
-    depends_on:
-      - redis
-      - postgres
-      - mailhog
-    ports: []
-    command: /start-celerybeat
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
 
-  flower:
-    <<: *django
-    image: devops_interview_test_local_flower
-    container_name: devops_interview_test_local_flower
-    ports:
-      - '5555:5555'
-    command: /start-flower
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements/base.txt
+          pip install -r requirements/local.txt
+          pip install black isort flake8
+
+      - name: Run isort
+        run: isort .
+
+      - name: Run black
+        run: black .
+
+      - name: Commit and push formatting changes
+        if: github.event_name != 'pull_request'
+        run: |
+          if [[ -n $(git status --porcelain) ]]; then
+            git config --global user.name "github-actions"
+            git config --global user.email "actions@github.com"
+            git add .
+            git commit -m "style: autoformat with isort and black"
+            git push
+          fi
+
+      - name: Run flake8 (non-blocking)
+        run: flake8 . || true
+
+      - name: Run migrations
+        run: python manage.py migrate
+
+      - name: Run tests
+        run: pytest --disable-warnings
+
+      - name: Generate Docker tag
+        run: |
+          echo "IMAGE_NAME=ghcr.io/${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
+          echo "TAG_NAME=devops-$(date +'%d-%m')" >> $GITHUB_ENV
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t $IMAGE_NAME:${{ github.sha }} \
+            -t $IMAGE_NAME:$TAG_NAME \
+            -f compose/local/django/Dockerfile .
+
+      - name: Push Docker images
+        run: |
+          docker push $IMAGE_NAME:${{ github.sha }}
+          docker push $IMAGE_NAME:$TAG_NAME
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ github.sha }}
+          format: table
+          output: trivy-report.txt
+          exit-code: 0
+          severity: CRITICAL,HIGH
+
+      - name: Upload Trivy report
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+
+  cd-production:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    env:
+      TAG_NAME: devops-$(date +'%d-%m')
+      IMAGE_NAME: ghcr.io/jose26madrid/devops-coding-challenge
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Log in to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Pull image
+        run: docker pull $IMAGE_NAME:$TAG_NAME
+
+      - name: Tag pulled image as devops_interview_test_local_django
+        run: docker tag $IMAGE_NAME:$TAG_NAME devops_interview_test_local_django
+
+      - name: Run Trivy scan (production image)
+        continue-on-error: true
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:${{ env.TAG_NAME }}
+          format: table
+          output: trivy-prod-report.txt
+          exit-code: 1
+          severity: CRITICAL,HIGH
+
+      - name: Upload production Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-prod-report
+          path: trivy-prod-report.txt
+
+      - name: Run migrations via docker-compose
+        run: docker compose -f local.yml run --rm django python manage.py migrate
+
+      - name: Deploy to production
+        run: echo "🚀 Aquí iría tu despliegue real"
