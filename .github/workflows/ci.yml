@@ -176,6 +176,6 @@ jobs:
         run: |
           git config --global user.email "actions@github.com"
           git config --global user.name "github-actions"
-          git tag -d $TAG_NAME || true
+          git push --delete origin $TAG_NAME || true
           git tag -fa $TAG_NAME -m "Release $TAG_NAME"
           git push origin $TAG_NAME
