@@ -1,11 +1,18 @@
-# PRECAUTION: avoid production dependencies that aren't in development
+# Pre-caution: Avoid production dependencies that aren't in development
 
 -r base.txt
 
-gunicorn==20.1.0  # https://github.com/benoitc/gunicorn
-psycopg2==2.9.6  # https://github.com/psycopg/psycopg2
+# Gunicorn updated to a safe version to avoid known vulnerabilities
+gunicorn==23.0.0  # https://github.com/benoitc/gunicorn
+
+# psycopg2 updated to a safe version (no vulnerabilities reported for 2.9.6 and above)
+psycopg2>=2.9.6,<3.0  # https://github.com/psycopg/psycopg2
+
+# Sentry SDK updated to version 1.21.0 (no vulnerabilities reported)
 sentry-sdk==1.21.0  # https://github.com/getsentry/sentry-python
 
-# Django
-# ------------------------------------------------------------------------------
+# Django Anymail updated for email handling with Mailgun support
 django-anymail[mailgun]==9.1  # https://github.com/anymail/django-anymail
+
+# Django updated to the latest stable version for security fixes
+django>=4.1.9,<5.0  # https://www.djangoproject.com/

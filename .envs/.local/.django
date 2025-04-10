@@ -12,3 +12,14 @@ REDIS_URL=redis://redis:6379/0
 # Flower
 CELERY_FLOWER_USER=IYswvPRPnoiMNAsFAflyAZoODXlqaXKA
 CELERY_FLOWER_PASSWORD=XbohQoXyiYho0Kez41Xfxe5QlKDwN9dDOhwUQAUp2sLyICigU0hrEOWH6IWV3Xim
+
+# Email
+#-------------------------------------------------------------------------------
+# Email config for Mailtrap
+DJANGO_EMAIL_BACKEND=django.core.mail.backends.smtp.EmailBackend
+EMAIL_HOST=sandbox.smtp.mailtrap.io
+EMAIL_PORT=2525
+EMAIL_HOST_USER=6d3ca3af05b7ac
+EMAIL_HOST_PASSWORD=686cff8943b57d
+EMAIL_USE_TLS=True
+DEFAULT_FROM_EMAIL=no-reply@example.com
